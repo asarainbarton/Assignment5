@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 void loop(char* server_address, int server_listening_port);
 char* readString();
@@ -151,12 +152,12 @@ char** split(char* inputStr)
 
 char* send_to_server(char* server_address, int server_listening_port, char* text) 
 {
-    // Creates the client socket
+    // Creates a socket
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) 
     {
-        perror("Error: Unable to create client socket.\n");
-        exit(1);
+        perror("Error: Unable to create socket.");
+        exit(EXIT_FAILURE);
     }
 
     // Sets up the server address
@@ -165,36 +166,40 @@ char* send_to_server(char* server_address, int server_listening_port, char* text
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_listening_port);
 
-    if (inet_pton(AF_INET, server_address, &serv_addr.sin_addr) <= 0) 
+    // Converts the server address from a domain name to an IP address (If it has to)
+    struct hostent* server = gethostbyname(server_address);
+    if (server == NULL) 
     {
-        perror("Error: Invalid IP address\n");
+        perror("Error: No such host.");
         exit(1);
     }
+    memcpy(&serv_addr.sin_addr, server->h_addr, server->h_length);
 
     // Connects to the server
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) 
     {
-        perror("Error: Connection Failed.\n");
+        perror("Error: Connection failed.");
         exit(1);
     }
 
     // Sends the message
     if (send(sock, text, strlen(text), 0) < 0) 
     {
-        perror("Error: Send Failed");
+        perror("Error: Send failed.");
         exit(1);
     }
 
-    // Receives the response from the server
+    // Receives the response
     char* response = malloc(1024 * sizeof(char));
-    int len = recv(sock, response, sizeof(response) - 1, 0);
+    int len = recv(sock, response, sizeof(response) - 1, 0); // Receive the response
     if (len < 0) 
     {
-        perror("Receive failed");
-        exit(EXIT_FAILURE);
+        perror("Error: Receive failed.");
+        exit(1);
     }
     response[len] = '\0';
 
+    // Close the connection
     close(sock);
 
     return response;
