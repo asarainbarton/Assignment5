@@ -17,7 +17,7 @@ int main(int argc, char** argv)
     // We can let argv[1] = "MSFT.csv" and argv[2] = "TSLA.csv", and argv[3] = 30000
     if (argv[1] == NULL || argv[2] == NULL || argv[3] == NULL)
     {
-        perror("Error: Must provide arguments for MSFT.csv, TSLA.csv, and the port number that the server will listen to.\n");
+        perror("Error: Must provide arguments for MSFT.csv, TSLA.csv, and the port number that the server will listen to.");
         exit(1);
     }
 
@@ -25,9 +25,14 @@ int main(int argc, char** argv)
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) 
     {
-        perror("Error: Unable to open socket.\n");
+        perror("Error: Unable to open socket.");
         exit(1);
     }
+
+    // Allows the server to re-establish connection if the server's process ended and then immediately got reinitiated.
+    int yes = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (void*)&yes, sizeof(yes)) < 0)
+        perror("Error: Unable for server to establish connection.");
 
     // Bind the socket to a port
     struct sockaddr_in server_address;
@@ -36,7 +41,7 @@ int main(int argc, char** argv)
     server_address.sin_port = htons(atoi(argv[3]));
     if (bind(server_fd, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) 
     {
-        perror("Error: Unable to bind.\n");
+        perror("Error: Unable to bind.");
         exit(1);
     }
 
@@ -51,7 +56,7 @@ int main(int argc, char** argv)
         int client_socket = accept(server_fd, (struct sockaddr*)&client_address, (socklen_t*)&client_address_len);
         if (client_socket < 0) 
         {
-            perror("ERROR on accept");
+            perror("Error: Unable to accept");
             exit(1);
         }
 
@@ -69,7 +74,7 @@ void listenAndRespond(int client_socket, char* csv1, char* csv2)
     n = read(client_socket, buffer, 255);
     if (n < 0) 
     {
-        perror("Error: Unable to read request from client.\n");
+        perror("Error: Unable to read request from client");
         exit(1);
     }
 
@@ -82,7 +87,7 @@ void listenAndRespond(int client_socket, char* csv1, char* csv2)
     n = write(client_socket, response, strlen(response));
     if (n < 0) 
     {
-        perror("Error: Unable to write response back to client.\n");
+        perror("Error: Unable to write response back to client");
         exit(1);
     }
 
@@ -100,7 +105,7 @@ char* processRequest(char* client_command, char* csv1, char* csv2)
     {
         free(args);
         char* temp = malloc(24 * sizeof(char));
-        strcpy(temp, "Error: Invalid Request\n");
+        strcpy(temp, "Error: Invalid Request");
 
         return temp;
     }
