@@ -16,6 +16,7 @@ char* getEmptyString();
 void checkValidPtr(char* ptr);
 char** split(char* inputStr);
 char* send_to_server(char* server_address, int server_listening_port, char* text);
+void addLengthByteToString(char* str);
 
 
 int main(int argc, char** argv)
@@ -39,25 +40,25 @@ void loop(char* server_address, int server_listening_port)
     {
         printf("> ");
         input = readString();
+        char** args = split(input);
 
-        if (input == NULL)
+        if (args == NULL || *args == NULL)
         {
-            printf("Error: Invalid Input\n");
+            printf("Invalid syntax\n");
             continue;
         }
-        else if (strcmp(input, "quit") == 0)
+        else if ((strcmp(args[0], "quit") == 0) || (strcmp(args[0], "List") == 0) || (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL) 
+            || (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL))
         {
             server_response = send_to_server(server_address, server_listening_port, input);
-            
-            exit(0);
-        }
-        else
-        {
-            server_response = send_to_server(server_address, server_listening_port, input);
+
+            if (strcmp(args[0], "quit") == 0)
+                exit(0);
+
             printf("Received from server: %s\n", server_response);
         }
-
-        free(input);
+        else 
+            printf("Invalid syntax\n");
 
     } while (1);
 }
@@ -152,12 +153,23 @@ char** split(char* inputStr)
 
 char* send_to_server(char* server_address, int server_listening_port, char* text) 
 {
+    char* response = malloc(256 * sizeof(char));
+
+    // Message must be shorter than 256 bytes long (+1 to accomodate for stored length of string)
+    if (strlen(text) + 1 >= 256)
+    {
+        strcpy(response, "Error: Message too large to send.");
+        return response;
+    }
+
+    addLengthByteToString(text);
+
     // Creates a socket
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) 
     {
-        perror("Error: Unable to create socket.");
-        exit(EXIT_FAILURE);
+        perror("Error: Unable to create socket");
+        exit(1);
     }
 
     // Sets up the server address
@@ -168,9 +180,9 @@ char* send_to_server(char* server_address, int server_listening_port, char* text
 
     // Converts the server address from a domain name to an IP address (If it has to)
     struct hostent* server = gethostbyname(server_address);
-    if (server == NULL) 
+    if (server == NULL)
     {
-        perror("Error: No such host.");
+        perror("Error: No such host");
         exit(1);
     }
     memcpy(&serv_addr.sin_addr, server->h_addr, server->h_length);
@@ -178,29 +190,46 @@ char* send_to_server(char* server_address, int server_listening_port, char* text
     // Connects to the server
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) 
     {
-        perror("Error: Connection failed.");
+        perror("Error: Connection failed");
         exit(1);
     }
 
     // Sends the message
     if (send(sock, text, strlen(text), 0) < 0) 
     {
-        perror("Error: Send failed.");
+        perror("Error: Send failed");
         exit(1);
     }
 
     // Receives the response
-    char* response = malloc(1024 * sizeof(char));
-    int len = recv(sock, response, sizeof(response) - 1, 0); // Receive the response
+    int len = recv(sock, response, sizeof(response) + 2, 0); // Receive the response
     if (len < 0) 
     {
-        perror("Error: Receive failed.");
+        perror("Error: Receive failed");
         exit(1);
     }
     response[len] = '\0';
+
+    char num_letters = response[0];
+    response = response + 1;
+
+    // All data from server response must be received by client in its entirety
+    if (num_letters != strlen(response))
+    {
+        strcpy(response, "Error: Corrupted response from server.\n");
+        return response;
+    }
 
     // Close the connection
     close(sock);
 
     return response;
+}
+
+void addLengthByteToString(char* str) 
+{
+    int len = strlen(str);
+
+    memmove(str + 1, str, len + 1);
+    str[0] = len;
 }

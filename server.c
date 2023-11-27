@@ -7,10 +7,13 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 
 void listenAndRespond(int client_socket, char* csv1, char* csv2);
 char* processRequest(char* client_command, char* csv1, char* csv2);
 char** split(char* inputStr);
+char* addLengthByteToString(char* str);
 
 int main(int argc, char** argv)
 {
@@ -47,6 +50,8 @@ int main(int argc, char** argv)
 
     // Allows socket to now accept incoming connections from the client
     listen(server_fd, 5);
+
+    printf("server started\n");
 
     while(1)
     {
@@ -97,16 +102,30 @@ void listenAndRespond(int client_socket, char* csv1, char* csv2)
 
 char* processRequest(char* client_command, char* csv1, char* csv2)
 {
+    char num_letters = client_command[0];
+    client_command = client_command + 1;
+
+    char* response = malloc(256 * sizeof(char));
+
+    // All data sent must be received in its entirety
+    if (num_letters != strlen(client_command))
+    {
+        strcpy(response, "Error: Corrupted request from client.");
+
+        response = addLengthByteToString(response);
+        return response;
+    }
+
     printf("%s\n", client_command);
     
     char** args = split(client_command);
 
     if (args == NULL || *args == NULL)
     {
-        free(args);
         char* temp = malloc(24 * sizeof(char));
-        strcpy(temp, "Error: Invalid Request");
+        strcpy(temp, "Invalid syntax");
 
+        temp = addLengthByteToString(temp);
         return temp;
     }
 
@@ -116,7 +135,7 @@ char* processRequest(char* client_command, char* csv1, char* csv2)
     }
     else if (strcmp(args[0], "List") == 0)
     {
-            
+        
     }
     else if (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL)
     {
@@ -124,23 +143,21 @@ char* processRequest(char* client_command, char* csv1, char* csv2)
     }
     else if (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL)
     {
-            
-    }
-    else 
-    {
-
-    }
         
+    }
+    else // Client should be responsible for making sure queries are valid before being sent but this is here just in case
+    {
+        char* temp = malloc(24 * sizeof(char));
+        strcpy(temp, "Invalid syntax");
 
-    // Free all memory from splitVals
-    for (int i = 0; args[i] != NULL; i++)
-        free(args[i]);
-    free(args);
-
+        temp = addLengthByteToString(temp);
+        return temp;
+    }
 
     // Temporary response for now
-    char* response = malloc(10 * sizeof(char));
-    strcpy(response, "received\n");
+    strcpy(response, "received");
+
+    response = addLengthByteToString(response);
 
     return response;
 }
@@ -191,4 +208,14 @@ char** split(char* inputStr)
     splitVals[bigCount] = NULL;
 
     return splitVals;
+}
+
+char* addLengthByteToString(char* str) 
+{
+    int len = strlen(str);
+
+    memmove(str + 1, str, len + 1);
+    str[0] = len;
+
+    return str;
 }
