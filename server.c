@@ -10,17 +10,62 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-void listenAndRespond(int client_socket, char* csv1, char* csv2);
-char* processRequest(char* client_command, char* csv1, char* csv2);
+typedef struct 
+{
+    char* name;
+    char** dates;
+    char** prices;
+} Stock;
+
+typedef struct 
+{
+    Stock** stocks;
+    int size;
+} StockList;
+
+void listenAndRespond(int client_socket, StockList* stocks);
+char* processRequest(char* client_command, StockList* stocks);
 char** split(char* inputStr);
 char* addLengthByteToString(char* str);
+Stock* read_stock_data(char* filename);
+int endsWith(const char *str, const char *suffix);
+StockList* init_stock_list();
+void append_stock(StockList* stock_list, Stock* stock);
+char* get_csv_stock_name(const char *filename);
+char* getStockName(Stock* stock);
 
 int main(int argc, char** argv)
 {
     // We can let argv[1] = "MSFT.csv" and argv[2] = "TSLA.csv", and argv[3] = 30000
-    if (argv[1] == NULL || argv[2] == NULL || argv[3] == NULL)
+    // if (argv[1] == NULL || argv[2] == NULL || argv[3] == NULL)
+    // {
+    //     perror("Error: Must provide arguments for MSFT.csv, TSLA.csv, and the port number that the server will listen to.");
+    //     exit(1);
+    // }
+
+    StockList* stocks = init_stock_list();
+
+    char ch[5] = ".csv";
+    int index = 0;
+    bool csvExists = false;
+
+    // Computer reads stock data from csv files
+    while (argv[index] != NULL)
     {
-        perror("Error: Must provide arguments for MSFT.csv, TSLA.csv, and the port number that the server will listen to.");
+        // True if the argument refers to a csv file
+        if (endsWith(argv[index], ch))
+        {
+            append_stock(stocks, read_stock_data(argv[index]));
+            csvExists = true;
+        }
+            
+        index++;
+    }
+
+    // Must provide valid command with proper arguments when starting the server
+    if (index <= 2 || !csvExists)
+    {
+        perror("Error: Must provide arguments for at least one csv file, and the port number that the server will listen to.");
         exit(1);
     }
 
@@ -41,7 +86,7 @@ int main(int argc, char** argv)
     struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
     server_address.sin_addr.s_addr = INADDR_ANY;
-    server_address.sin_port = htons(atoi(argv[3]));
+    server_address.sin_port = htons(atoi(argv[index - 1]));
     if (bind(server_fd, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) 
     {
         perror("Error: Unable to bind.");
@@ -66,11 +111,11 @@ int main(int argc, char** argv)
         }
 
        // Handle the client request in a new thread/process
-       listenAndRespond(client_socket, argv[1], argv[2]);
+       listenAndRespond(client_socket, stocks);
     }
 }
 
-void listenAndRespond(int client_socket, char* csv1, char* csv2)
+void listenAndRespond(int client_socket, StockList* stocks)
 {
     char buffer[256];
     int n;
@@ -86,7 +131,7 @@ void listenAndRespond(int client_socket, char* csv1, char* csv2)
     buffer[n] = '\0';
 
     // Process the request and prepare a response
-    char* response = processRequest(buffer, csv1, csv2);
+    char* response = processRequest(buffer, stocks);
 
     // Send the response back to the client
     n = write(client_socket, response, strlen(response));
@@ -100,7 +145,7 @@ void listenAndRespond(int client_socket, char* csv1, char* csv2)
     close(client_socket);
 }
 
-char* processRequest(char* client_command, char* csv1, char* csv2)
+char* processRequest(char* client_command, StockList* stocks)
 {
     char num_letters = client_command[0];
     client_command = client_command + 1;
@@ -128,18 +173,28 @@ char* processRequest(char* client_command, char* csv1, char* csv2)
         temp = addLengthByteToString(temp);
         return temp;
     }
-
+    
     if (strcmp(args[0], "quit") == 0)
     {
         exit(0);
     }
     else if (strcmp(args[0], "List") == 0)
     {
-        
+        response[0] = '\0'; 
+        char* temp_name;
+
+        for (int i = 0; stocks -> stocks[i] != NULL; i++)
+        {
+            temp_name = getStockName(stocks -> stocks[i]);
+            strcat(response, temp_name);
+
+            if (stocks -> stocks[i + 1] != NULL) 
+                strcat(response, " | ");
+        }
     }
     else if (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL)
     {
-            
+        
     }
     else if (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL)
     {
@@ -153,9 +208,6 @@ char* processRequest(char* client_command, char* csv1, char* csv2)
         temp = addLengthByteToString(temp);
         return temp;
     }
-
-    // Temporary response for now
-    strcpy(response, "received");
 
     response = addLengthByteToString(response);
 
@@ -218,4 +270,89 @@ char* addLengthByteToString(char* str)
     str[0] = len;
 
     return str;
+}
+
+Stock* read_stock_data(char* filename) 
+{
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) 
+    {
+        printf("Could not open file %s\n", filename);
+        exit(1);
+    }
+
+    char line[1024];
+    char* dates[1000];
+    char* prices[1000];
+    int count = 0;
+
+    while (fgets(line, 1024, file)) 
+    {
+        char* tmp = strdup(line);
+        char* tok;
+        int i = 0;
+        for (tok = strtok(line, ","); tok && *tok; tok = strtok(NULL, ",\n")) 
+        {
+            if (i == 0) 
+                dates[count] = strdup(tok);
+            else if (i == 4) 
+                prices[count] = strdup(tok);
+            i++;
+        }
+        count++;
+        free(tmp);
+    }
+
+    Stock* stock = malloc(sizeof(Stock));
+    stock->dates = dates;
+    stock->prices = prices;
+    stock->name = get_csv_stock_name(filename);
+
+    fclose(file);
+    return stock;
+}
+
+int endsWith(const char *str, const char *suffix) 
+{
+    if (!str || !suffix)
+        return 0;
+
+    size_t lenstr = strlen(str);
+    size_t lensuffix = strlen(suffix);
+
+    if (lensuffix > lenstr)
+        return 0;
+
+    return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+}
+
+StockList* init_stock_list() 
+{
+    StockList* stock_list = malloc(sizeof(StockList));
+    stock_list->stocks = malloc(sizeof(Stock*));
+    stock_list->size = 0;
+    return stock_list;
+}
+
+void append_stock(StockList* stock_list, Stock* stock) 
+{
+    stock_list->stocks = realloc(stock_list->stocks, (stock_list->size + 2) * sizeof(Stock*));
+    stock_list->stocks[stock_list->size] = stock;
+    stock_list->stocks[stock_list->size + 1] = NULL;
+    stock_list->size++;
+}
+
+char* get_csv_stock_name(const char *filename) 
+{
+    const char *dot = strrchr(filename, '.');
+
+    if (!dot || dot == filename) 
+        return "";
+
+    return strndup(filename, dot - filename);
+}
+
+char* getStockName(Stock* stock)
+{
+    return stock -> name;
 }

@@ -55,7 +55,8 @@ void loop(char* server_address, int server_listening_port)
             if (strcmp(args[0], "quit") == 0)
                 exit(0);
 
-            printf("Received from server: %s\n", server_response);
+            // Print the server response to the client
+            printf("%s\n", server_response);
         }
         else 
             printf("Invalid syntax\n");
@@ -202,7 +203,7 @@ char* send_to_server(char* server_address, int server_listening_port, char* text
     }
 
     // Receives the response
-    int len = recv(sock, response, sizeof(response) + 2, 0); // Receive the response
+    int len = recv(sock, response, sizeof(response) + 4, 0); // Receive the response
     if (len < 0) 
     {
         perror("Error: Receive failed");
@@ -222,6 +223,8 @@ char* send_to_server(char* server_address, int server_listening_port, char* text
 
     // Close the connection
     close(sock);
+
+    printf("response[first] = %c and response[last] = %c\n", response[0], response[strlen(response) - 1]);
 
     return response;
 }
