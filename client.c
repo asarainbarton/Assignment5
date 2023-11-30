@@ -17,6 +17,7 @@ void checkValidPtr(char* ptr);
 char** split(char* inputStr);
 char* send_to_server(char* server_address, int server_listening_port, char* text);
 bool validDate(char* date);
+bool dateIsBeforeOrOn(char* date1, char* date2);
 
 
 int main(int argc, char** argv)
@@ -48,7 +49,7 @@ void loop(char* server_address, int server_listening_port)
             continue;
         }
         else if ((strcmp(args[0], "quit") == 0) || (strcmp(args[0], "List") == 0) || (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL && validDate(args[2])) 
-            || (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL))
+            || (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL && validDate(args[2]) && validDate(args[3]) && dateIsBeforeOrOn(args[2], args[3])))
         {
             server_response = send_to_server(server_address, server_listening_port, input);
 
@@ -267,5 +268,32 @@ bool validDate(char* date)
     }
 
     return true;
+}
+
+bool dateIsBeforeOrOn(char* date1, char* date2) 
+{
+    int year1, month1, day1;
+    int year2, month2, day2;
+
+    if (sscanf(date1, "%d-%d-%d", &year1, &month1, &day1) != 3 ||
+        sscanf(date2, "%d-%d-%d", &year2, &month2, &day2) != 3) 
+    {
+        return false;
+    }
+
+    if (year1 < year2) 
+        return true;
+    else if (year1 > year2) 
+        return false;
+
+    if (month1 < month2) 
+        return true;
+    else if (month1 > month2) 
+        return false;
+
+    if (day1 < day2) 
+        return true;
+
+    return false;
 }
 

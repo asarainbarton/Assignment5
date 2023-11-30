@@ -35,6 +35,12 @@ char* get_csv_stock_name(const char *filename);
 char* getStockName(Stock* stock);
 int getIndex(char** theList, char* val);
 char* roundUp(char* str);
+char** getDates(char* start, char* end, char* filename);
+bool dateIsBefore(char* date1, char* date2);
+char** getPrices(char* start, char* end, char* filename);
+bool validDate(char* date);
+float calculateMaxProfit(char** prices);
+bool validBorderDates(char** dates, char* start, char* end);
 
 
 int main(int argc, char** argv)
@@ -224,7 +230,54 @@ char* processRequest(char* client_command, StockList* stocks)
     }
     else if (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL)
     {
-        
+        response[0] = '\0'; 
+        char* temp_name;
+        int i;
+        bool valid = false;
+
+        for (i = 0; stocks -> stocks[i] != NULL; i++)
+        {
+            if (strcmp(getStockName(stocks -> stocks[i]), args[1]) == 0)
+            {
+                valid = true;
+                break;
+            }
+        }
+
+        // Unknown stock
+        if (! valid)
+        {
+            strcat(response, "Unknown");
+        }
+        else 
+        {
+            char** prices;
+            char** dates;
+            
+            if (strcmp(args[1], "MSFT") == 0)
+            {
+                dates = getDates(args[2], args[3], "MSFT.csv");
+                prices = getPrices(args[2], args[3], "MSFT.csv");
+            }
+            else 
+            {
+                dates = getDates(args[2], args[3], "TSLA.csv");
+                prices = getPrices(args[2], args[3], "TSLA.csv");
+            }
+
+            if (! validBorderDates(dates, args[2], args[3]))
+            {
+                strcat(response, "Unknown");
+            }
+            else 
+            {
+                float maxProfit = calculateMaxProfit(prices);
+                char* numString = malloc(20 * sizeof(char));
+                sprintf(numString, "%f", maxProfit);
+
+                strcat(response, roundUp(numString));
+            }
+        }
     }
     else // Client should be responsible for making sure queries are valid before being sent but this is here just in case
     {
@@ -290,7 +343,7 @@ Stock* read_stock_data(char* filename)
     if (file == NULL) 
     {
         printf("Could not open file %s\n", filename);
-        exit(1);
+        return NULL;
     }
 
     char line[1024];
@@ -405,4 +458,222 @@ char* roundUp(char* str)
    return result;
 }
 
+char** getDates(char* start, char* end, char* filename)
+{
+    char** dates = malloc(305 * sizeof(char*));
+
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) 
+    {
+        printf("Could not open file %s\n", filename);
+        exit(1);
+    }
+
+    char line[1024];
+    int count = 0;
+    char* t = malloc(12 * sizeof(char));
+
+    while (fgets(line, 1024, file)) 
+    {
+        char* tmp = strdup(line);
+        char* tok;
+        int i = 0;
+        for (tok = strtok(line, ","); tok && *tok; tok = strtok(NULL, ",\n")) 
+        {
+            if (i == 0) 
+            {
+                t = strdup(tok);
+
+                // True if in the range
+                if (validDate(t) && !dateIsBefore(t, start) && !dateIsBefore(end, t))
+                {
+                    dates[count] = malloc(12 * sizeof(char));
+                    strcpy(dates[count], t);
+                    count++;
+                }   
+            }
+
+            i++;
+        }
+        free(tmp);
+        free(t);
+    }
+
+    dates[count] = NULL;
+
+    return dates;
+}
+
+char** getPrices(char* start, char* end, char* filename)
+{
+    char** prices = malloc(305 * sizeof(char*));
+
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) 
+    {
+        printf("Could not open file %s\n", filename);
+        exit(1);
+    }
+
+    char line[1024];
+    int count = 0;
+    char* t = malloc(20 * sizeof(char));
+    bool inRange = false;
+
+
+    while (fgets(line, 1024, file)) 
+    {
+        char* tmp = strdup(line);
+        char* tok;
+        int i = 0;
+        for (tok = strtok(line, ","); tok && *tok; tok = strtok(NULL, ",\n")) 
+        {
+            if (i == 0) 
+            {
+                inRange = false;
+
+                t = strdup(tok);
+
+                // True if in the range
+                if (validDate(t) && !dateIsBefore(t, start) && !dateIsBefore(end, t))
+                {
+                    inRange = true;
+                }   
+            }
+            else if (i == 4)
+            {
+                if (inRange)
+                {
+                    t = strdup(tok);
+                    prices[count] = malloc(20 * sizeof(char));
+                    strcpy(prices[count], t);
+                    count++;
+                }
+            }
+
+            i++;
+        }
+        free(tmp);
+        free(t);
+    }
+
+    prices[count] = NULL;
+
+    return prices;
+}
+
+bool dateIsBefore(char* date1, char* date2) 
+{
+    int year1, month1, day1;
+    int year2, month2, day2;
+
+    if (sscanf(date1, "%d-%d-%d", &year1, &month1, &day1) != 3 ||
+        sscanf(date2, "%d-%d-%d", &year2, &month2, &day2) != 3) 
+    {
+        return false;
+    }
+
+    if (year1 < year2) 
+        return true;
+    else if (year1 > year2) 
+        return false;
+
+    if (month1 < month2) 
+        return true;
+    else if (month1 > month2) 
+        return false;
+
+    if (day1 < day2) 
+        return true;
+
+    return false;
+}
+
+bool validDate(char* date) 
+{
+    int year, month, day;
+
+    if (sscanf(date, "%d-%d-%d", &year, &month, &day) != 3) 
+        return false;
+
+    if (year < 1800 || year > 9999) 
+        return false;
+    
+    if (month < 1 || month > 12) 
+        return false;
+
+    if (day < 1 || day > 31) 
+        return false;
+
+    // February
+    if (month == 2) 
+    {
+        if (year % 400 == 0 || (year % 100 != 0 && year % 4 == 0)) 
+        {
+            if (day > 29) 
+            {
+                return false;
+            }
+        } 
+        else 
+        {
+            if (day > 28) 
+            {
+                return false;
+            }
+        }
+    } 
+    else if (month == 4 || month == 6 || month == 9 || month == 11) 
+    {
+        if (day > 30) 
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+float calculateMaxProfit(char** prices) 
+{
+    int size = 0;
+    
+    while (prices[size] != NULL)
+        size++;
+    
+    // Should never occur but here just in case since I don't want to risk a seg fault
+    if (size < 2)
+        return 0;
+    
+    float minPrice = (float)atof(prices[0]);
+    float maxProfit = (float)atof(prices[1]) - (float)atof(prices[0]);
+
+    for (int i = 1; i < size; i++) 
+    {
+        float currentPrice = (float)atof(prices[i]);
+
+        // Calculate profit if we bought at min price and sold at current price
+        float potentialProfit = currentPrice - minPrice;
+
+        // Update maxProfit if we can do better
+        maxProfit = fmaxf(maxProfit, potentialProfit);
+
+        // Update minPrice so it's always the lowest price we've seen so far
+        minPrice = fminf(minPrice, currentPrice);
+    }
+
+    return maxProfit;
+}
+
+bool validBorderDates(char** dates, char* start, char* end)
+{
+    int size = 0;
+    while (dates[size] != NULL)
+        size++;
+    
+    if (size < 2 || strcmp(dates[0], start) != 0 || strcmp(dates[size - 1], end) != 0)
+        return false;
+    
+    return true;
+}
 
