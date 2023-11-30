@@ -16,7 +16,7 @@ char* getEmptyString();
 void checkValidPtr(char* ptr);
 char** split(char* inputStr);
 char* send_to_server(char* server_address, int server_listening_port, char* text);
-void addLengthByteToString(char* str);
+bool validDate(char* date);
 
 
 int main(int argc, char** argv)
@@ -47,7 +47,7 @@ void loop(char* server_address, int server_listening_port)
             printf("Invalid syntax\n");
             continue;
         }
-        else if ((strcmp(args[0], "quit") == 0) || (strcmp(args[0], "List") == 0) || (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL) 
+        else if ((strcmp(args[0], "quit") == 0) || (strcmp(args[0], "List") == 0) || (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL && validDate(args[2])) 
             || (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL))
         {
             server_response = send_to_server(server_address, server_listening_port, input);
@@ -154,16 +154,14 @@ char** split(char* inputStr)
 
 char* send_to_server(char* server_address, int server_listening_port, char* text) 
 {
-    char* response = malloc(256 * sizeof(char));
+    char* response = malloc(1024 * sizeof(char));
 
     // Message must be shorter than 256 bytes long (+1 to accomodate for stored length of string)
-    if (strlen(text) + 1 >= 256)
+    if (strlen(text) >= 256)
     {
         strcpy(response, "Error: Message too large to send.");
         return response;
     }
-
-    addLengthByteToString(text);
 
     // Creates a socket
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -202,37 +200,72 @@ char* send_to_server(char* server_address, int server_listening_port, char* text
         exit(1);
     }
 
-    // Receives the response
-    int len = recv(sock, response, sizeof(response) + 4, 0); // Receive the response
-    if (len < 0) 
+    // Receives the message
+    int total_len = 0;
+    int len;
+    do 
     {
-        perror("Error: Receive failed");
-        exit(1);
-    }
-    response[len] = '\0';
+        len = recv(sock, response + total_len, 1024 - total_len, 0);
+        if (len < 0) 
+        {
+            perror("Error: Receive failed");
+            exit(1);
+        }
+        total_len += len;
+    } while (len > 0);
 
-    char num_letters = response[0];
-    response = response + 1;
-
-    // All data from server response must be received by client in its entirety
-    if (num_letters != strlen(response))
-    {
-        strcpy(response, "Error: Corrupted response from server.\n");
-        return response;
-    }
+    response[total_len] = '\0';
 
     // Close the connection
     close(sock);
 
-    printf("response[first] = %c and response[last] = %c\n", response[0], response[strlen(response) - 1]);
+    // printf("response[first] = %c and response[last] = %c\n", response[0], response[strlen(response) - 1]);
 
     return response;
 }
 
-void addLengthByteToString(char* str) 
+bool validDate(char* date) 
 {
-    int len = strlen(str);
+    int year, month, day;
 
-    memmove(str + 1, str, len + 1);
-    str[0] = len;
+    if (sscanf(date, "%d-%d-%d", &year, &month, &day) != 3) 
+        return false;
+
+    if (year < 1800 || year > 9999) 
+        return false;
+    
+    if (month < 1 || month > 12) 
+        return false;
+
+    if (day < 1 || day > 31) 
+        return false;
+
+    // February
+    if (month == 2) 
+    {
+        if (year % 400 == 0 || (year % 100 != 0 && year % 4 == 0)) 
+        {
+            if (day > 29) 
+            {
+                return false;
+            }
+        } 
+        else 
+        {
+            if (day > 28) 
+            {
+                return false;
+            }
+        }
+    } 
+    else if (month == 4 || month == 6 || month == 9 || month == 11) 
+    {
+        if (day > 30) 
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
+

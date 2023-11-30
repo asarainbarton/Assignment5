@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <math.h>
 
 typedef struct 
 {
@@ -26,23 +27,18 @@ typedef struct
 void listenAndRespond(int client_socket, StockList* stocks);
 char* processRequest(char* client_command, StockList* stocks);
 char** split(char* inputStr);
-char* addLengthByteToString(char* str);
 Stock* read_stock_data(char* filename);
 int endsWith(const char *str, const char *suffix);
 StockList* init_stock_list();
 void append_stock(StockList* stock_list, Stock* stock);
 char* get_csv_stock_name(const char *filename);
 char* getStockName(Stock* stock);
+int getIndex(char** theList, char* val);
+char* roundUp(char* str);
+
 
 int main(int argc, char** argv)
 {
-    // We can let argv[1] = "MSFT.csv" and argv[2] = "TSLA.csv", and argv[3] = 30000
-    // if (argv[1] == NULL || argv[2] == NULL || argv[3] == NULL)
-    // {
-    //     perror("Error: Must provide arguments for MSFT.csv, TSLA.csv, and the port number that the server will listen to.");
-    //     exit(1);
-    // }
-
     StockList* stocks = init_stock_list();
 
     char ch[5] = ".csv";
@@ -55,7 +51,8 @@ int main(int argc, char** argv)
         // True if the argument refers to a csv file
         if (endsWith(argv[index], ch))
         {
-            append_stock(stocks, read_stock_data(argv[index]));
+            Stock* s = read_stock_data(argv[index]);
+            append_stock(stocks, s);
             csvExists = true;
         }
             
@@ -117,11 +114,11 @@ int main(int argc, char** argv)
 
 void listenAndRespond(int client_socket, StockList* stocks)
 {
-    char buffer[256];
+    char buffer[1024];
     int n;
 
     // Read the client's request
-    n = read(client_socket, buffer, 255);
+    n = read(client_socket, buffer, 1023);
     if (n < 0) 
     {
         perror("Error: Unable to read request from client");
@@ -147,33 +144,20 @@ void listenAndRespond(int client_socket, StockList* stocks)
 
 char* processRequest(char* client_command, StockList* stocks)
 {
-    char num_letters = client_command[0];
-    client_command = client_command + 1;
-
-    char* response = malloc(256 * sizeof(char));
-
-    // All data sent must be received in its entirety
-    if (num_letters != strlen(client_command))
-    {
-        strcpy(response, "Error: Corrupted request from client.");
-
-        response = addLengthByteToString(response);
-        return response;
-    }
-
-    printf("%s\n", client_command);
-    
+    char* response = malloc(1024 * sizeof(char));
     char** args = split(client_command);
+
+    if (strcmp(args[0], "quit") != 0)
+        printf("%s\n", client_command);
 
     if (args == NULL || *args == NULL)
     {
         char* temp = malloc(24 * sizeof(char));
         strcpy(temp, "Invalid syntax");
 
-        temp = addLengthByteToString(temp);
         return temp;
     }
-    
+
     if (strcmp(args[0], "quit") == 0)
     {
         exit(0);
@@ -190,11 +174,53 @@ char* processRequest(char* client_command, StockList* stocks)
 
             if (stocks -> stocks[i + 1] != NULL) 
                 strcat(response, " | ");
-        }
+        }    
     }
     else if (strcmp(args[0], "Prices") == 0 && args[1] != NULL && args[2] != NULL)
     {
-        
+        response[0] = '\0'; 
+        char* temp_name;
+        int i;
+        bool valid = false;
+        int size = 0;
+
+        for (i = 0; stocks -> stocks[i] != NULL; i++)
+            size++;
+
+        for (i = 0; stocks -> stocks[i] != NULL; i++)
+        {
+            if (strcmp(getStockName(stocks -> stocks[i]), args[1]) == 0)
+            {
+                valid = true;
+                break;
+            }
+        }
+
+        if (! valid)
+        {
+            strcat(response, "Unknown");
+        }
+        else 
+        {
+            Stock* temp;
+            char* nombre = malloc(50 * sizeof(char));
+            if (strcmp(getStockName(stocks -> stocks[i]), "MSFT") == 0)
+                temp = read_stock_data("MSFT.csv");
+            else
+                temp = read_stock_data("TSLA.csv");
+
+            int index = getIndex(temp -> dates, args[2]);
+            
+            // Date does not exist
+            if (index == -1)
+            {
+                strcat(response, "Unknown");
+            }
+            else 
+            {     
+                strcat(response, roundUp(temp -> prices[index]));
+            }
+        }
     }
     else if (strcmp(args[0], "MaxProfit") == 0 && args[1] != NULL && args[2] != NULL && args[3] != NULL)
     {
@@ -204,12 +230,8 @@ char* processRequest(char* client_command, StockList* stocks)
     {
         char* temp = malloc(24 * sizeof(char));
         strcpy(temp, "Invalid syntax");
-
-        temp = addLengthByteToString(temp);
         return temp;
     }
-
-    response = addLengthByteToString(response);
 
     return response;
 }
@@ -262,16 +284,6 @@ char** split(char* inputStr)
     return splitVals;
 }
 
-char* addLengthByteToString(char* str) 
-{
-    int len = strlen(str);
-
-    memmove(str + 1, str, len + 1);
-    str[0] = len;
-
-    return str;
-}
-
 Stock* read_stock_data(char* filename) 
 {
     FILE* file = fopen(filename, "r");
@@ -302,6 +314,9 @@ Stock* read_stock_data(char* filename)
         count++;
         free(tmp);
     }
+
+    dates[count] = NULL;
+    prices[count] = NULL;
 
     Stock* stock = malloc(sizeof(Stock));
     stock->dates = dates;
@@ -356,3 +371,38 @@ char* getStockName(Stock* stock)
 {
     return stock -> name;
 }
+
+int getIndex(char** theList, char* val)
+{
+    int index = 0;
+
+    if (theList == NULL)
+        return -1;
+
+    
+    while (theList[index] != NULL)
+    {
+        if (strcmp(theList[index], val) == 0)
+            return index;
+        
+        index++;
+
+        if (index > 1000)
+            return -1;
+    }
+
+    return -1;
+}
+
+char* roundUp(char* str) 
+{
+   float num = atof(str);
+   float rounded = (num * 100) / 100;
+
+   char* result = malloc(10 * sizeof(char));
+   sprintf(result, "%.2f", rounded);
+
+   return result;
+}
+
+

@@ -1,0 +1,19 @@
+---
+triple:          'x86_64-apple-darwin'
+binary-path:     server
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100002DE0, symSize: 0x200 }
+  - { offsetInCU: 0x9B, offset: 0x9B, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100002DE0, symSize: 0x200 }
+  - { offsetInCU: 0x18B, offset: 0x18B, size: 0x8, addend: 0x0, symName: _endsWith, symObjAddr: 0x200, symBinAddr: 0x100002FE0, symSize: 0xA0 }
+  - { offsetInCU: 0x1E2, offset: 0x1E2, size: 0x8, addend: 0x0, symName: _read_stock_data, symObjAddr: 0x2A0, symBinAddr: 0x100003080, symSize: 0x250 }
+  - { offsetInCU: 0x2B4, offset: 0x2B4, size: 0x8, addend: 0x0, symName: _append_stock, symObjAddr: 0x4F0, symBinAddr: 0x1000032D0, symSize: 0x80 }
+  - { offsetInCU: 0x2E9, offset: 0x2E9, size: 0x8, addend: 0x0, symName: __OSSwapInt16, symObjAddr: 0x570, symBinAddr: 0x100003350, symSize: 0x20 }
+  - { offsetInCU: 0x311, offset: 0x311, size: 0x8, addend: 0x0, symName: _listenAndRespond, symObjAddr: 0x590, symBinAddr: 0x100003370, symSize: 0x130 }
+  - { offsetInCU: 0x372, offset: 0x372, size: 0x8, addend: 0x0, symName: _processRequest, symObjAddr: 0x6C0, symBinAddr: 0x1000034A0, symSize: 0x4B0 }
+  - { offsetInCU: 0x4C8, offset: 0x4C8, size: 0x8, addend: 0x0, symName: _split, symObjAddr: 0xB70, symBinAddr: 0x100003950, symSize: 0x1E0 }
+  - { offsetInCU: 0x544, offset: 0x544, size: 0x8, addend: 0x0, symName: _getStockName, symObjAddr: 0xD50, symBinAddr: 0x100003B30, symSize: 0x20 }
+  - { offsetInCU: 0x56E, offset: 0x56E, size: 0x8, addend: 0x0, symName: _getIndex, symObjAddr: 0xD70, symBinAddr: 0x100003B50, symSize: 0x90 }
+  - { offsetInCU: 0x5B6, offset: 0x5B6, size: 0x8, addend: 0x0, symName: _roundUp, symObjAddr: 0xE00, symBinAddr: 0x100003BE0, symSize: 0x80 }
+  - { offsetInCU: 0x60D, offset: 0x60D, size: 0x8, addend: 0x0, symName: _get_csv_stock_name, symObjAddr: 0xE80, symBinAddr: 0x100003C60, symSize: 0x70 }
+  - { offsetInCU: 0x646, offset: 0x646, size: 0x8, addend: 0x0, symName: _init_stock_list, symObjAddr: 0xEF0, symBinAddr: 0x100003CD0, symSize: 0x3F }
+...
