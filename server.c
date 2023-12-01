@@ -42,6 +42,8 @@ bool validDate(char* date);
 float calculateMaxProfit(char** prices);
 bool validBorderDates(char** dates, char* start, char* end);
 
+int s_socket;
+int c_socket;
 
 int main(int argc, char** argv)
 {
@@ -98,6 +100,7 @@ int main(int argc, char** argv)
 
     // Allows socket to now accept incoming connections from the client
     listen(server_fd, 5);
+    s_socket = server_fd;
 
     printf("server started\n");
 
@@ -133,6 +136,8 @@ void listenAndRespond(int client_socket, StockList* stocks)
 
     buffer[n] = '\0';
 
+    c_socket = client_socket;
+
     // Process the request and prepare a response
     char* response = processRequest(buffer, stocks);
 
@@ -166,6 +171,9 @@ char* processRequest(char* client_command, StockList* stocks)
 
     if (strcmp(args[0], "quit") == 0)
     {
+        close(c_socket);
+        close(s_socket);
+        
         exit(0);
     }
     else if (strcmp(args[0], "List") == 0)
@@ -655,12 +663,15 @@ float calculateMaxProfit(char** prices)
         // Calculate profit if we bought at min price and sold at current price
         float potentialProfit = currentPrice - minPrice;
 
-        // Update maxProfit if we can do better
-        maxProfit = fmaxf(maxProfit, potentialProfit);
+        if (potentialProfit > maxProfit)
+            maxProfit = potentialProfit;
 
-        // Update minPrice so it's always the lowest price we've seen so far
-        minPrice = fminf(minPrice, currentPrice);
+        if (currentPrice < minPrice)
+            minPrice = currentPrice;
     }
+
+    if (maxProfit < 0)
+        maxProfit = 0;
 
     return maxProfit;
 }
